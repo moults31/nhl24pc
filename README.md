@@ -109,6 +109,10 @@ Development notes: `tools\run_nhl24.ps1` runs the build with the diagnostics log
 scripts measurement runs, `tools\capture_report.py` summarises a capture. The version lives in
 `src/common/port_version.h` (also used for the exe resource and the launcher title).
 
+**Tagged GitHub Releases** ([moults31/nhl24pc](https://github.com/moults31/nhl24pc)): push tag
+`vX.Y.Z` matching `NHLPORT_VERSION`; CI publishes `NHL-24-PC-vX.Y.Z.zip`. See
+[docs/RELEASE.md](docs/RELEASE.md).
+
 ## Contributing
 
 Issues and pull requests are welcome – performance, the open rendering issues above, DualSense

@@ -50,8 +50,8 @@ namespace NhlPort
             { "game_folder", new[] { "Priečinok hry", "Game folder" } },
             { "browse", new[] { "Prehľadávať…", "Browse…" } },
             { "install_pkg", new[] { "Inštalovať z PKG…", "Install from PKG…" } },
-            { "pkg_req", new[] { "Potrebuje PKG základnej hry NHL 24 v01.00 (CUSA37933). Update neinštaluj: s v1.6 hra zamrzne pri prvom vhadzovaní.",
-                                  "Needs the NHL 24 base game PKG v01.00 (CUSA37933). Do not install the update: v1.6 freezes at the first puck drop." } },
+            { "pkg_req", new[] { "Potrebuje PKG základnej hry NHL 24 v01.00 (CUSA37933 USA alebo CUSA37934 EUR). Update neinštaluj: s v1.6 hra zamrzne pri prvom vhadzovaní.",
+                                  "Needs the NHL 24 base game PKG v01.00 (CUSA37933 USA or CUSA37934 EUR). Do not install the update: v1.6 freezes at the first puck drop." } },
             { "output", new[] { "Výstup", "Output" } },
             { "display_mode", new[] { "Režim zobrazenia", "Display mode" } },
             { "windowed", new[] { "Okno", "Windowed" } },
@@ -80,7 +80,7 @@ namespace NhlPort
             { "pkg_progress", new[] { "{0} / {1} MB   •   {2} / {3} súborov", "{0} / {1} MB   •   {2} / {3} files" } },
             { "pkg_done", new[] { "Hotovo: {0} nainštalovaný do {1}", "Done: {0} installed into {1}" } },
             { "pkg_error", new[] { "Inštalácia zlyhala: {0}", "Installation failed: {0}" } },
-            { "pkg_wrong", new[] { "Tento balík je {0} ({1}), port potrebuje NHL 24 (CUSA37933).", "This package is {0} ({1}); the port needs NHL 24 (CUSA37933)." } },
+            { "pkg_wrong", new[] { "Tento balík je {0} ({1}), port potrebuje NHL 24 (CUSA37933 alebo CUSA37934).", "This package is {0} ({1}); the port needs NHL 24 (CUSA37933 or CUSA37934)." } },
             { "pkg_kind_base", new[] { "základná hra", "base game" } },
             { "pkg_kind_patch", new[] { "aktualizácia", "update" } },
             { "pkg_kind_other", new[] { "iný obsah", "other content" } },
@@ -104,8 +104,8 @@ namespace NhlPort
             { "display_note", new[] { "Hra vykresľuje natívne 1920x1080 (ako na PS4) a výstup sa škáluje na zvolené okno alebo obrazovku. FSR zlepší ostrosť pri väčších rozlíšeniach (1440p, 4K). Interné rozlíšenie hry sa nemení, aby sa nerozbilo rozloženie obrazu a menu.",
                                        "The game renders at its native 1920x1080 (as on the PS4) and the output is scaled to the chosen window or screen. FSR improves sharpness at larger resolutions (1440p, 4K). The internal resolution stays fixed so the picture and menu layout stay intact." } },
             { "version_line", new[] { "Windows  •  v{0}", "Windows  •  v{0}" } },
-            { "game_line", new[] { "CUSA37933  •  verzia hry {0}", "CUSA37933  •  game version {0}" } },
-            { "game_line_none", new[] { "CUSA37933  •  hra nie je nainštalovaná", "CUSA37933  •  game not installed" } },
+            { "game_line", new[] { "{0}  •  verzia hry {1}", "{0}  •  game version {1}" } },
+            { "game_line_none", new[] { "{0}  •  hra nie je nainštalovaná", "{0}  •  game not installed" } },
         };
 
         public static string T(string key)
@@ -464,13 +464,12 @@ namespace NhlPort
     {
         const string FallbackVersion = "0.8.3";
         string PortVersion = FallbackVersion; // taken from the version resource of nhl24.exe when present
-        const string TitleId = "CUSA37933";
+        static readonly string[] SupportedTitleIds = { "CUSA37933", "CUSA37934" };
         readonly string baseDir;
         readonly string configPath;
         readonly string inputPath;
         readonly string gamePathFile;
         readonly string gameExe;
-        readonly string savesDir;
 
         Image background;
         Image playImage;
@@ -525,7 +524,6 @@ namespace NhlPort
             inputPath = Path.Combine(baseDir, "user", "input_config", "default.ini");
             gamePathFile = Path.Combine(baseDir, "user", "game_path.txt");
             gameExe = Path.Combine(baseDir, "nhl24.exe");
-            savesDir = Path.Combine(baseDir, "user", "home", "1000", "savedata", TitleId);
 
             background = LoadImage("background.png");
             playImage = LoadImage("btn.png");
@@ -662,29 +660,56 @@ namespace NhlPort
             return ReadSfoString(Path.Combine(folder, "sce_sys", "param.sfo"), "APP_VER") ?? "?";
         }
 
+        string InstalledTitleId(string folder)
+        {
+            if (!File.Exists(Path.Combine(folder, "eboot.bin"))) return null;
+            return ReadSfoString(Path.Combine(folder, "sce_sys", "param.sfo"), "TITLE_ID");
+        }
+
+        static bool IsSupportedTitleId(string titleId)
+        {
+            if (string.IsNullOrEmpty(titleId)) return false;
+            foreach (var id in SupportedTitleIds)
+                if (titleId == id) return true;
+            return false;
+        }
+
+        static string SupportedTitleIdsLabel()
+        {
+            return string.Join(" / ", SupportedTitleIds);
+        }
+
+        string SavesDir(string titleId)
+        {
+            return Path.Combine(baseDir, "user", "home", "1000", "savedata", titleId);
+        }
+
         // ------------------------------------------------------------------ ready check
         void RefreshReadyCheck()
         {
             var folder = GameFolder;
             var version = InstalledVersion(folder);
+            var titleId = InstalledTitleId(folder);
             if (version != null)
             {
                 var text = Loc.F("game_ok", version, folder);
                 var upd = InstalledVersion(folder + "-UPDATE");
                 if (upd != null) text += Loc.F("game_upd", upd);
                 rowGame.Text = text; rowGame.Ok = true;
-                gameVersionLabel.Text = Loc.F("game_line", upd ?? version);
+                gameVersionLabel.Text = Loc.F("game_line", titleId ?? SupportedTitleIds[0], upd ?? version);
             }
             else
             {
                 rowGame.Text = Loc.T("game_missing"); rowGame.Ok = false;
-                gameVersionLabel.Text = Loc.T("game_line_none");
+                gameVersionLabel.Text = Loc.F("game_line_none", SupportedTitleIdsLabel());
             }
             rowGame.Invalidate();
 
             int profiles = 0;
+            var savesTitleId = titleId ?? SupportedTitleIds[0];
+            var savesDir = SavesDir(savesTitleId);
             try { if (Directory.Exists(savesDir)) profiles = Directory.GetDirectories(savesDir).Length; } catch (Exception) { }
-            var shortSaves = Path.Combine("user", "home", "1000", "savedata", TitleId);
+            var shortSaves = Path.Combine("user", "home", "1000", "savedata", savesTitleId);
             if (profiles > 0) { rowSaves.Text = Loc.F("saves_ok", profiles, shortSaves); rowSaves.Ok = true; }
             else { rowSaves.Text = Loc.F("saves_none", shortSaves); rowSaves.Ok = false; }
             rowSaves.Invalidate();
@@ -1322,7 +1347,7 @@ namespace NhlPort
             var title = Field(infoLine, "title");
             long size = 0;
             long.TryParse(Field(infoLine, "size"), out size);
-            if (titleId != TitleId || (kind != "base" && kind != "patch"))
+            if (!IsSupportedTitleId(titleId) || (kind != "base" && kind != "patch"))
             {
                 MessageBox.Show(this, Loc.F("pkg_wrong", titleId, title.Length > 0 ? title : Loc.T("pkg_kind_other")), Loc.T("pkg_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;

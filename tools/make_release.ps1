@@ -31,9 +31,16 @@ if ($redist) {
     Write-Warning 'Visual C++ redistributable folder not found; users will need the VC++ 2015-2022 x64 runtime installed'
 }
 # user template: config without machine/user specific sections, controls, memory patches
+$userTemplate = Join-Path $Build 'user'
+if (-not (Test-Path (Join-Path $userTemplate 'config.json'))) {
+    $userTemplate = Join-Path $repo 'release\user'
+}
+if (-not (Test-Path (Join-Path $userTemplate 'config.json'))) {
+    throw "user template config.json not found under build\user or release\user"
+}
 $user = Join-Path $Out 'user'
 New-Item -ItemType Directory -Force $user, (Join-Path $user 'input_config'), (Join-Path $user 'patches') | Out-Null
-$cfg = Get-Content (Join-Path $Build 'user\config.json') -Raw | ConvertFrom-Json
+$cfg = Get-Content (Join-Path $userTemplate 'config.json') -Raw | ConvertFrom-Json
 foreach ($section in 'Launcher') { if ($cfg.PSObject.Properties[$section]) { $cfg.PSObject.Properties.Remove($section) } }
 if ($cfg.General) {
     $cfg.General.install_dirs = @()
@@ -42,7 +49,7 @@ if ($cfg.General) {
 if ($cfg.GPU -and $null -ne $cfg.GPU.PSObject.Properties['dump_shaders']) { $cfg.GPU.dump_shaders = $false }
 if ($cfg.Vulkan -and $null -ne $cfg.Vulkan.PSObject.Properties['gpu_id']) { $cfg.Vulkan.gpu_id = -1 }
 $cfg | ConvertTo-Json -Depth 20 | Out-File -Encoding utf8 (Join-Path $user 'config.json')
-foreach ($ini in 'default.ini', 'global.ini') { Copy-Item -Force (Join-Path $Build "user\input_config\$ini") (Join-Path $user 'input_config') }
+foreach ($ini in 'default.ini', 'global.ini') { Copy-Item -Force (Join-Path $userTemplate "input_config\$ini") (Join-Path $user 'input_config') }
 Copy-Item -Force (Join-Path $repo 'game_patches\nhl24.xml') (Join-Path $user 'patches')
 # readme
 @'

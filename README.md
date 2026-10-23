@@ -12,7 +12,7 @@ implementations, and the GPU work goes through Vulkan.
 |---|---|
 | Video | [NHL 24 running on PC – YouTube](https://youtu.be/eGo1-W3FaYw) |
 | Ready-to-run package | [`release/`](release) – `launcher.exe`, `nhl24.exe`, runtime DLLs, clean `user\` template |
-| Current build | **v0.8.3** (2026-10-14), Windows 10/11 x64 |
+| Current build | **v0.8.4**, Windows 10/11 x64 |
 | Needs | your own NHL 24 PKG (base v01.00, optionally the update), a Vulkan 1.3 GPU |
 | License | GPL-2.0-or-later (same as shadPS4) |
 

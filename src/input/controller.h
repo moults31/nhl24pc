@@ -58,7 +58,7 @@ private:
 
 public:
     void OnButton(Libraries::Pad::OrbisPadButtonDataOffset, bool);
-    void OnAxis(Axis, int, u64 timestamp, bool smooth = true);
+    void OnAxis(Axis, int, u64 timestamp, bool smooth = false);
     void OnTouchpad(int touchIndex, bool isDown, float x, float y);
     void OnGyro(const float[3]);
     void OnAccel(const float[3]);
@@ -94,7 +94,7 @@ public:
     int ReadStates(State* states, int states_num);
 
     void Button(Libraries::Pad::OrbisPadButtonDataOffset button, bool isPressed);
-    void Axis(Input::Axis axis, int value, bool smooth = true);
+    void Axis(Input::Axis axis, int value, bool smooth = false);
     void UpdateGyro(const float gyro[3]);
     void UpdateAcceleration(const float acceleration[3]);
     void PollState();

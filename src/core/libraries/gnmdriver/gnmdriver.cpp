@@ -2095,21 +2095,26 @@ int PS4_SYSV_ABI sceGnmSqttWaitForEvent() {
 // can run several frames behind the CPU; NHL 24 counts the flips it submitted and its RenderLoop
 // thread only resumes while at most 3 of them are still outstanding. With 4 or more it waits
 // forever: the 3D scene is never rendered (black ice, HUD only) and the game stops reacting to
-// input. Hold the submitting thread until the presenter is within kMaxFlipsInFlight flips of it.
-static std::atomic<u64> cpu_flip_submits{0};
-
+// input. Block new submits until flip_pending_num drops below the game's limit (do not time out:
+// giving up early caused black ice with low-latency present modes).
 static void ThrottleFlipSubmit(u32 vo_handle) {
-    constexpr u64 kMaxFlipsInFlight = 2;
-    constexpr auto kMaxWait = std::chrono::milliseconds(200);
-    const auto t0 = std::chrono::steady_clock::now();
-    VideoOut::FlipStatus status{};
+    constexpr s32 kMaxPendingFlips = 3;
     u32 polls = 0;
-    while (VideoOut::sceVideoOutGetFlipStatus(static_cast<s32>(vo_handle), &status) == ORBIS_OK &&
-           cpu_flip_submits.load() > status.count + kMaxFlipsInFlight) {
-        if (std::chrono::steady_clock::now() - t0 > kMaxWait) {
-            LOG_WARNING(Lib_GnmDriver, "flip throttle timed out: cpu_submits={} presented={}",
-                        cpu_flip_submits.load(), status.count);
+    const auto t0 = std::chrono::steady_clock::now();
+    while (true) {
+        VideoOut::FlipStatus status{};
+        if (VideoOut::sceVideoOutGetFlipStatus(static_cast<s32>(vo_handle), &status) != ORBIS_OK) {
             break;
+        }
+        if (status.flip_pending_num < kMaxPendingFlips) {
+            break;
+        }
+        const auto elapsed = std::chrono::steady_clock::now() - t0;
+        if (elapsed > std::chrono::seconds(2) && (polls % 8000) == 0) {
+            LOG_WARNING(Lib_GnmDriver,
+                        "flip throttle waiting: pending={} presented={} ({} ms)",
+                        status.flip_pending_num, status.count,
+                        std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
         }
         std::this_thread::sleep_for(std::chrono::microseconds(250));
         ++polls;
@@ -2117,10 +2122,12 @@ static void ThrottleFlipSubmit(u32 vo_handle) {
     static u32 reports = 0;
     if (polls != 0 && reports < 5) {
         ++reports;
-        LOG_INFO(Lib_GnmDriver, "flip throttle: waited {} polls (cpu_submits={} presented={})",
-                 polls, cpu_flip_submits.load(), status.count);
+        VideoOut::FlipStatus status{};
+        if (VideoOut::sceVideoOutGetFlipStatus(static_cast<s32>(vo_handle), &status) == ORBIS_OK) {
+            LOG_INFO(Lib_GnmDriver, "flip throttle: waited {} polls (pending={} presented={})",
+                     polls, status.flip_pending_num, status.count);
+        }
     }
-    ++cpu_flip_submits;
 }
 
 static inline s32 PatchFlipRequest(u32* cmdbuf, u32 size, u32 vo_handle, u32 buf_idx, u32 flip_mode,

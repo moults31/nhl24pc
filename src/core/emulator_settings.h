@@ -425,7 +425,7 @@ struct GPUSettings {
     Setting<u32> vblank_frequency{60};
     Setting<bool> full_screen{false};
     Setting<std::string> full_screen_mode{"Windowed"};
-    Setting<std::string> present_mode{"Mailbox"};
+    Setting<std::string> present_mode{"Immediate"};
     Setting<bool> hdr_allowed{false};
     Setting<bool> fsr_enabled{false};
     Setting<bool> rcas_enabled{true};

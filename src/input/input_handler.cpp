@@ -893,8 +893,8 @@ bool UpdatePressedKeys(InputEvent event) {
             pressed_keys.insert(it, {event, false});
             LOG_DEBUG(Input, "Added axis {} to the input list", event.input.sdl_id);
         } else {
-            // noise filter
-            if (std::abs(it->first.axis_value - event.axis_value) <= 1) {
+            if (input.gamepad_id == 0 &&
+                std::abs(it->first.axis_value - event.axis_value) <= 1) {
                 return false;
             }
             it->first.axis_value = event.axis_value;

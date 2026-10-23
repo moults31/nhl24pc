@@ -83,6 +83,10 @@ int GameController::ReadStates(State* states, int states_num) {
         return 1;
     }
 
+    while (m_states_queue.Size() > static_cast<u64>(states_num)) {
+        m_states_queue.Pop();
+    }
+
     int read_count = 0;
     while (read_count < states_num) {
         auto state = m_states_queue.Pop();

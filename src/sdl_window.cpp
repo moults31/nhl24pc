@@ -94,7 +94,12 @@ static OrbisPadButtonDataOffset SDLGamepadToOrbisButton(u8 button) {
     }
 }
 
+static constexpr Uint32 kControllerPollIntervalMs = 1;
+
 static Uint32 SDLCALL PollControllers(void* userdata, SDL_TimerID timer_id, Uint32 interval) {
+    if (!EmulatorSettings.IsMotionControlsEnabled()) {
+        return interval;
+    }
     auto* controllers = reinterpret_cast<Input::GameControllers*>(userdata);
     for (size_t i = 0; i < 4; ++i) {
         (*controllers)[i]->PollState();
@@ -215,14 +220,7 @@ void WindowSDL::SetIcon(std::span<const u8> png_data) {
     SetWindowIcon(window, std::vector<u8>(png_data.begin(), png_data.end()));
 }
 
-void WindowSDL::WaitEvent() {
-    // Called on main thread
-    SDL_Event event;
-
-    if (!SDL_WaitEvent(&event)) {
-        return;
-    }
-
+void WindowSDL::DispatchEvent(SDL_Event& event) {
     if (Libraries::Mouse::PushSDLEvent(event) || Libraries::Keyboard::PushSDLEvent(event)) {
         return;
     }
@@ -357,8 +355,20 @@ void WindowSDL::WaitEvent() {
     }
 }
 
+void WindowSDL::WaitEvent() {
+    SDL_Event event;
+
+    if (!SDL_WaitEvent(&event)) {
+        return;
+    }
+
+    do {
+        DispatchEvent(event);
+    } while (SDL_PollEvent(&event));
+}
+
 void WindowSDL::InitTimers() {
-    SDL_AddTimer(4, &PollControllers, &controllers);
+    SDL_AddTimer(kControllerPollIntervalMs, &PollControllers, &controllers);
     SDL_AddTimer(33, Input::MousePolling, (void*)controllers[0]);
 }
 

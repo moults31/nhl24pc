@@ -1,0 +1,113 @@
+# Tag-triggered GitHub Release for the ready-to-run Windows launcher package.
+# Builds nhl24.exe + launcher.exe, runs tools/make_release.ps1, uploads NHL-24-PC-vX.Y.Z.zip.
+#
+# Cut a release: bump src/common/port_version.h, merge to main, then:
+#   git tag vX.Y.Z && git push origin vX.Y.Z
+# See docs/RELEASE.md.
+
+name: Release (Windows package)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  release:
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Verify tag matches NHLPORT_VERSION
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          if ! grep -qF "#define NHLPORT_VERSION \"${version}\"" src/common/port_version.h; then
+            echo "Tag ${tag} must match NHLPORT_VERSION in src/common/port_version.h (expected \"${version}\")" >&2
+            exit 1
+          fi
+
+      - name: Cache CMake build
+        uses: hendrikmuhs/ccache-action@v1.2.21
+        env:
+          cache-name: ${{ runner.os }}-nhl24-cache-cmake-build
+        with:
+          append-timestamp: false
+          key: ${{ env.cache-name }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/**') }}
+
+      - name: Configure CMake
+        run: cmake --fresh -G Ninja -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE=ON -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build nhl24.exe
+        run: cmake --build ${{ github.workspace }}/build --config ${{ env.BUILD_TYPE }} --parallel $env:NUMBER_OF_PROCESSORS
+
+      - name: Build launcher.exe
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File launcher\build_launcher.ps1 -Out ${{ github.workspace }}\build
+
+      - name: Assemble release package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staging = Join-Path $env:GITHUB_WORKSPACE 'staging'
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools\make_release.ps1 `
+            -Build (Join-Path $env:GITHUB_WORKSPACE 'build') `
+            -Out $staging
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll') {
+            if (-not (Test-Path (Join-Path $staging $dll))) {
+              throw "Missing $dll in staging; VC++ runtime was not bundled"
+            }
+          }
+
+      - name: Create zip and SHA256SUMS
+        shell: pwsh
+        id: pack
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Select-String -Path (Join-Path $env:GITHUB_WORKSPACE 'src/common/port_version.h') -Pattern '#define NHLPORT_VERSION "([^"]+)"').Matches.Groups[1].Value
+          $zipName = "NHL-24-PC-v$version.zip"
+          $zipPath = Join-Path $env:RUNNER_TEMP $zipName
+          $staging = Join-Path $env:GITHUB_WORKSPACE 'staging'
+          if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
+          Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $zipPath -CompressionLevel Optimal
+          $hash = (Get-FileHash -Algorithm SHA256 $zipPath).Hash.ToLower()
+          $sumsPath = Join-Path $env:RUNNER_TEMP 'SHA256SUMS'
+          "${hash}  ${zipName}" | Out-File -Encoding ascii -NoNewline $sumsPath
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "zip_name=$zipName"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "zip_path=$zipPath"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "sums_path=$sumsPath"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: NHL 24 PC v${{ steps.pack.outputs.version }}
+          body: |
+            Ready-to-run Windows launcher package (**no game data**). Extract, install your own NHL 24 base-game PKG v01.00 via `launcher.exe`, then Play.
+
+            | | |
+            |---|---|
+            | **Semver** | v${{ steps.pack.outputs.version }} |
+            | **Commit** | [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
+            | **Asset** | `${{ steps.pack.outputs.zip_name }}` |
+
+            Verify: compare `SHA256SUMS` with the zip after download.
+
+            PKG: CUSA37933 (USA) or CUSA37934 (EUR), base v01.00 only unless your build's patch set supports the update (see README).
+          files: |
+            ${{ steps.pack.outputs.zip_path }}
+            ${{ steps.pack.outputs.sums_path }}
+          generate_release_notes: true

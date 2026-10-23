@@ -46,6 +46,10 @@ public:
         m_size = 0;
     }
 
+    [[nodiscard]] u64 Size() const {
+        return m_size;
+    }
+
 private:
     u64 m_begin = 0;
     u64 m_size = 0;

@@ -923,7 +923,7 @@ namespace NhlPort
             Gpu["internal_screen_height"] = 1080;
             Gpu["full_screen"] = fullscreenBox.Checked;
             Gpu["full_screen_mode"] = fullscreenModeBox.SelectedIndex == 1 ? "Fullscreen" : "Windowed";
-            Gpu["present_mode"] = vsyncBox.Checked ? "Fifo" : "Mailbox";
+            Gpu["present_mode"] = vsyncBox.Checked ? "Fifo" : "Immediate";
             Gpu["fsr_enabled"] = fsrBox.Checked;
             Gpu["rcas_enabled"] = rcasBox.Checked;
             Gpu["rcas_attenuation"] = sharpnessBar.Value;
@@ -1096,7 +1096,7 @@ namespace NhlPort
             langBox.SelectedIndexChanged += delegate { if (langBox.SelectedIndex != Loc.Lang) { Loc.Lang = langBox.SelectedIndex; Relayout(); } };
             quickPanel.Controls.Add(langBox);
             vsyncQuick = new CheckBox { Left = c2, Top = y + 2, Width = cw, Height = 24, Font = Theme.Body, ForeColor = Color.White, BackColor = Color.Transparent, Text = Loc.T("vsync"),
-                Checked = Convert.ToString(GpuValue("present_mode", "Mailbox")) == "Fifo" };
+                Checked = Convert.ToString(GpuValue("present_mode", "Immediate")) == "Fifo" };
             quickPanel.Controls.Add(vsyncQuick);
             quickPanel.Controls.Add(new TransparentLabel { Left = c2, Top = y + 28, Width = cw, Height = 40, Font = Theme.Small, ForeColor = Color.FromArgb(200, 210, 225), Text = Loc.T("vsync_desc") });
             y += 70;

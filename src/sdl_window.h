@@ -75,6 +75,7 @@ public:
     void SetIcon(std::span<const u8> png_data);
 
     void WaitEvent();
+    void DispatchEvent(SDL_Event& event);
     void InitTimers();
 
     void RequestKeyboard();
